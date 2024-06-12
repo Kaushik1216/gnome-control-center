@@ -411,8 +411,8 @@ cc_sharing_panel_new_add_media_sharing_row (CcSharingPanel *self)
 {
   GtkWidget *row;
 
-  row = adw_button_row_new ();
-  adw_button_row_set_start_icon_name (ADW_BUTTON_ROW (row), "list-add-symbolic");
+  row = adw_action_row_new ();
+  //adw_button_content_set_icon_name (ADW_BUTTON_ROW (row), "list-add-symbolic");
   adw_preferences_row_set_title (ADW_PREFERENCES_ROW (row), _("_Add Folder"));
   adw_preferences_row_set_use_underline (ADW_PREFERENCES_ROW (row), TRUE);
 

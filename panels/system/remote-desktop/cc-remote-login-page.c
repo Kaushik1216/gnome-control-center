@@ -59,8 +59,8 @@ struct _CcRemoteLoginPage {
   GtkWidget    *credentials_group;
   GtkWidget    *username_entry;
   GtkWidget    *password_entry;
-  AdwButtonRow *generate_password_button_row;
-  AdwButtonRow *verify_encryption_button_row;
+  AdwActionRow *generate_password_button_row;
+  AdwActionRow *verify_encryption_button_row;
 
   GTlsCertificate *certificate;
 

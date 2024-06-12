@@ -122,7 +122,7 @@ struct _CcApplicationsPanel
   GtkListBox      *builtin_list;
   GList           *snap_permission_rows;
 
-  AdwButtonRow    *handler_reset;
+  AdwActionRow   *handler_reset;
   AdwDialog       *handler_dialog;
   AdwPreferencesPage *handler_page;
   CcListRow       *handler_row;
@@ -138,7 +138,7 @@ struct _CcApplicationsPanel
   AdwActionRow    *storage_dialog_data_row;
   AdwActionRow    *storage_dialog_cache_row;
   AdwActionRow    *storage_dialog_total_row;
-  AdwButtonRow    *clear_cache_button_row;
+  AdwActionRow    *clear_cache_button_row;
 
   guint64          app_size;
   guint64          cache_size;

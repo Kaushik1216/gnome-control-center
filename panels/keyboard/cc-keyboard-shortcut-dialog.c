@@ -46,7 +46,7 @@ struct _CcKeyboardShortcutDialog
 
   AdwNavigationView    *navigation_view;
   AdwNavigationPage    *main_page;
-  AdwButtonRow         *reset_all_button_row;
+  AdwActionRow         *reset_all_button_row;
   AdwDialog            *reset_all_dialog;
   GtkSearchEntry       *search_entry;
   GtkStack             *section_stack;

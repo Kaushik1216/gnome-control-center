@@ -49,7 +49,7 @@ struct _PpDetailsDialog {
   AdwEntryRow  *printer_location_entry;
   AdwActionRow *printer_model_label;
   AdwEntryRow  *printer_name_entry;
-  AdwButtonRow *search_for_drivers_button_row;
+  AdwActionRow *search_for_drivers_button_row;
 
   gchar        *printer_name;
   gchar        *ppd_file_name;
