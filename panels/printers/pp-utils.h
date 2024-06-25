@@ -248,6 +248,19 @@ void        get_cups_devices_async (GCancellable *cancellable,
                                     GCDCallback   callback,
                                     gpointer      user_data);
 
+void get_installed_printer_apps_async (GCancellable *cancellable,
+                                  GCDCallback   callback,
+                                  gpointer      user_data);
+
+void get_printer_apps_async_dbus_cb (GObject      *source_object,
+                                GAsyncResult *res,
+                                gpointer      user_data);
+
+void get_available_drivers_async (GCancellable *cancellable,
+                             GCDCallback   callback,
+                             gpointer      user_data);
+
+
 gchar      *guess_device_hostname (PpPrintDevice *device);
 
 gchar      *canonicalize_device_name (GList         *device_names,

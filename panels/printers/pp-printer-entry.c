@@ -46,9 +46,11 @@ struct _PpPrinterEntry
   GtkListBoxRow parent;
 
   gchar    *printer_name;
+  gchar    *UUID;
   gboolean  is_accepting_jobs;
   gchar    *printer_make_and_model;
   gchar    *printer_location;
+  gchar    *web_interface;
   gchar    *printer_hostname;
   gboolean  is_authorized;
   gint      printer_state;
@@ -71,6 +73,9 @@ struct _PpPrinterEntry
   GtkDrawingArea *supply_drawing_area;
   GtkWidget      *show_jobs_dialog_button;
   GtkBox         *printer_error;
+  GtkButton      *printer_detail_btn;
+  GtkButton      *printer_options_dialog_btn;
+  GtkLinkButton  *web_interface_btn;
   GtkLabel       *error_status;
 
   gboolean        is_default;
@@ -366,6 +371,16 @@ on_printer_rename_cb (GObject      *source_object,
   g_signal_emit_by_name (self, "printer-renamed", pp_printer_get_name (PP_PRINTER (source_object)));
 }
 
+static void
+on_click_web_interface (GtkButton      *button,
+                        PpPrinterEntry *self)
+{
+    //gtk_show_uri_on_window (self, self->web_interface, 0, NULL);
+    //gtk_window_present (GTK_WINDOW (self));
+    //gtk_show_uri_with_window (NULL, self->web_interface, gtk_get_current_event_time(), NULL);
+    return;
+}
+
 static gboolean
 show_printer_details_response_cb (PpPrinterEntry  *self,
                                   PpDetailsDialog *dialog)
@@ -567,6 +582,26 @@ pp_printer_entry_update_jobs_count (PpPrinterEntry *self)
                              self);
 }
 
+const gchar *
+pp_printer_entry_get_web_interface (PpPrinterEntry *self)
+{
+  g_return_val_if_fail (PP_IS_PRINTER_ENTRY (self), NULL);
+  return self->web_interface;
+}
+const gchar *
+pp_printer_entry_get_hostname (PpPrinterEntry *self)
+{
+  g_return_val_if_fail (PP_IS_PRINTER_ENTRY (self), NULL);
+  return self->printer_hostname;
+}
+
+const gchar   *
+pp_printer_entry_get_UUID (PpPrinterEntry *self)
+{
+  g_return_val_if_fail (PP_IS_PRINTER_ENTRY (self), NULL);
+  return self->UUID;
+}
+
 static gboolean
 jobs_dialog_close_request_cb (PpPrinterEntry *self)
 {
@@ -686,11 +721,15 @@ pp_printer_entry_update (PpPrinterEntry *self,
   cups_ptype_t      printer_type = 0;
   gboolean          is_accepting_jobs = TRUE;
   gboolean          ink_supply_is_empty;
+  gboolean          sanitize_name = FALSE;
   g_autofree gchar *instance = NULL;
   const gchar      *printer_uri = NULL;
+  gchar      *web_interface = NULL;
+  const gchar      *dev_type = NULL;
   const gchar      *device_uri = NULL;
   const gchar      *location = NULL;
   const gchar      *printer_make_and_model = NULL;
+  const gchar      *UUID = NULL;
   const gchar      *reason = NULL;
   gchar           **printer_reasons = NULL;
   g_autofree gchar *status = NULL;
@@ -768,6 +807,12 @@ pp_printer_entry_update (PpPrinterEntry *self,
     {
       if (g_strcmp0 (printer.options[i].name, "device-uri") == 0)
         device_uri = printer.options[i].value;
+      else if (g_strcmp0 (printer.options[i].name, "printer-more-info") == 0)
+        web_interface = printer.options[i].value, self->web_interface = web_interface;
+      else if (g_strcmp0 (printer.options[i].name, "OBJ_TYPE") == 0)
+        dev_type = printer.options[i].value;
+      else if (g_strcmp0 (printer.options[i].name, "sanitize-name") == 0)
+        sanitize_name = TRUE;
       else if (g_strcmp0 (printer.options[i].name, "printer-uri-supported") == 0)
         printer_uri = printer.options[i].value;
       else if (g_strcmp0 (printer.options[i].name, "printer-type") == 0)
@@ -776,6 +821,10 @@ pp_printer_entry_update (PpPrinterEntry *self,
         location = printer.options[i].value;
       else if (g_strcmp0 (printer.options[i].name, "printer-state-reasons") == 0)
         reason = printer.options[i].value;
+      else if (g_strcmp0 (printer.options[i].name, "UUID") == 0)
+        self->UUID = printer.options[i].value;
+      else if (g_strcmp0 (printer.options[i].name, "hostname") == 0)
+        self->printer_hostname = printer.options[i].value;
       else if (g_strcmp0 (printer.options[i].name, "marker-names") == 0)
         {
           g_free (self->inklevel->marker_names);
@@ -853,6 +902,16 @@ pp_printer_entry_update (PpPrinterEntry *self,
         status = g_strdup (_(statuses[report_index]));
     }
 
+  if (web_interface != NULL)
+  {
+     gtk_widget_set_visible (GTK_WIDGET (self->web_interface_btn), TRUE);
+     gtk_link_button_set_uri (self->web_interface_btn, web_interface);
+     gtk_widget_set_sensitive (GTK_WIDGET (self->web_interface_btn), TRUE);
+  }
+  else {
+     gtk_widget_set_visible (GTK_WIDGET (self->web_interface_btn), FALSE);
+  }
+
   if ((self->printer_state == PRINTER_STOPPED || !is_accepting_jobs) &&
       status != NULL && status[0] != '\0')
     {
@@ -902,6 +961,16 @@ pp_printer_entry_update (PpPrinterEntry *self,
   gtk_label_set_text (self->printer_name_label, instance);
   self->is_default = printer.is_default;
   g_object_notify (G_OBJECT (self), "default");
+
+  if (dev_type == NULL || sanitize_name == TRUE)
+    self->printer_make_and_model = sanitize_printer_model (printer_make_and_model);
+  else
+    {
+      gtk_widget_hide (GTK_WIDGET (self->printer_detail_btn));
+      gtk_widget_hide (GTK_WIDGET (self->printer_options_dialog_btn));
+      //gtk_widget_hide (GTK_WIDGET (self->printer_default_checkbutton));
+      //gtk_widget_hide (GTK_WIDGET (self->remove_printer_menuitem)); removed in new version
+    }
 
   self->printer_make_and_model = sanitize_printer_model (printer_make_and_model);
 
@@ -1036,6 +1105,13 @@ pp_printer_entry_class_init (PpPrinterEntryClass *klass)
   gtk_widget_class_bind_template_child (widget_class, PpPrinterEntry, error_status);
   gtk_widget_class_bind_template_child (widget_class, PpPrinterEntry, printer_error);
 
+  // all buttons are remove
+  //gtk_widget_class_bind_template_child (widget_class, PpPrinterEntry, web_interface_btn);
+  //gtk_widget_class_bind_template_child (widget_class, PpPrinterEntry, printer_options_dialog_btn);
+  //gtk_widget_class_bind_template_child (widget_class, PpPrinterEntry, printer_detail_btn);
+
+  gtk_widget_class_bind_template_callback (widget_class, on_click_web_interface);
+
   gtk_widget_class_bind_template_callback (widget_class, show_jobs_dialog);
   gtk_widget_class_bind_template_callback (widget_class, restart_printer);
 
@@ -1093,4 +1169,6 @@ pp_printer_entry_class_init (PpPrinterEntryClass *klass)
                                    (GtkWidgetActionActivateFunc) printer_clean_heads_cb);
   gtk_widget_class_install_action (widget_class, "printer.remove", NULL,
                                    (GtkWidgetActionActivateFunc) printer_remove_cb);
+  gtk_widget_class_install_action (widget_class, "printer.webinterface", NULL,
+                                   (GtkWidgetActionActivateFunc) on_click_web_interface);
 }

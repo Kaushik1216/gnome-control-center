@@ -239,6 +239,10 @@
   <menu id="printer_menu">
     <section>
       <item>
+        <attribute name="label" translatable="yes">Web Interface</attribute>
+        <attribute name="action">printer.webinterface</attribute>
+      </item>
+      <item>
         <attribute name="label" translatable="yes">Printing Options</attribute>
         <attribute name="action">printer.options</attribute>
       </item>

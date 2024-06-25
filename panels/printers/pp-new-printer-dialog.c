@@ -34,6 +34,8 @@
 #include "pp-host.h"
 #include "pp-new-printer.h"
 #include "pp-ppd-selection-dialog.h"
+#include "pp-printer-app-selection-dialog.h"
+#include "cc-printers-panel.h"
 #include "pp-app-printer-dialog.h"
 #include "pp-samba.h"
 #include "pp-utils.h"
@@ -138,6 +140,8 @@ struct _PpNewPrinterDialog
   gboolean  samba_searching;
 
   PpPPDSelectionDialog *ppd_selection_dialog;
+
+  PpPrinterAppSelectionDialog *printer_app_selection_dialog;
 
   PpAppPrinterDialog *app_printer_dialog;
 
@@ -1837,12 +1841,6 @@ pp_new_printer_dialog_dispose (GObject *object)
     {
       gtk_window_destroy (GTK_WINDOW (self->ppd_selection_dialog));
       self->ppd_selection_dialog = NULL;
-    }
-
-  if (self->app_printer_dialog != NULL)
-    {
-      gtk_window_destroy (GTK_WINDOW(self->app_printer_dialog));
-      self->app_printer_dialog = NULL;
     }
 
   if (self->num_of_dests > 0)

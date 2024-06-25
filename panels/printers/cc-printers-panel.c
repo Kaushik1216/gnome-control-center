@@ -29,6 +29,9 @@
 #include <glib/gstdio.h>
 #include <polkit/polkit.h>
 #include <gdesktop-enums.h>
+#include <glib.h>
+#include <glib/gi18n.h>
+#include <gio/gio.h>
 
 #include <cups/cups.h>
 #include <cups/ppd.h>
@@ -57,6 +60,21 @@
 
 #if (CUPS_VERSION_MAJOR > 1) || (CUPS_VERSION_MINOR > 5)
 #define HAVE_CUPS_1_6 1
+
+#define OBJ_ATTR_SIZE 1024
+#define AVAHI_IF_UNSPEC -1
+#define AVAHI_PROTO_INET 0
+#define AVAHI_PROTO_INET6 1
+#define AVAHI_PROTO_UNSPEC -1
+#define SYSTEMD1_OBJ "/org/freedesktop/systemd1"
+#define SYSTEMD1_BUS "org.freedesktop.systemd1"
+#define SYSTEMD1_MANAGER_IFACE "org.freedesktop.systemd1.Manager"
+#define SYSTEMD1_SERVICE_IFACE "org.freedesktop.systemd1.Service"
+#define AVAHI_BUS "org.freedesktop.Avahi"
+#define AVAHI_SERVER_IFACE "org.freedesktop.Avahi.Server"
+#define AVAHI_SERVICE_BROWSER_IFACE "org.freedesktop.Avahi.ServiceBrowser"
+#define AVAHI_SERVICE_RESOLVER_IFACE "org.freedesktop.Avahi.ServiceResolver"
+
 #endif
 
 #ifndef HAVE_CUPS_1_6
@@ -64,6 +82,67 @@
 #define ippGetStatusCode(ipp) ipp->request.status.status_code
 #define ippGetString(attr, element, language) attr->values[element].string.text
 #endif
+
+// #######################################################################
+enum
+{
+    SYSTEM_OBJECT,
+    PRINTER_OBJECT,
+    SCANNER_OBJECT,
+    PRINTER_QUEUE
+
+} obj_type;
+
+typedef struct
+{
+
+	ipp_t *response;
+	gchar *buff;
+	int buff_size;
+        cups_dest_t* service;
+
+} add_attribute_data;
+
+typedef struct
+{
+        char                *avahi_service_browser_path;
+        guint                avahi_service_browser_subscription_id;
+        guint                avahi_service_type_browser_subscription_id;
+        guint                unsubscribe_general_subscription_id;
+        guint                done,done_1,done_2,done_3,done_4;
+        GDBusConnection     *dbus_connection;
+        GCancellable        *avahi_cancellable;
+        GList               *system_objects;
+        GMainLoop           *loop;
+        gpointer             user_data;
+        char*                service_type;
+} Avahi;
+
+typedef struct
+{
+        GList                *services;
+        gchar                *location;
+        gchar                *address;
+        gchar                *hostname;
+        gchar                *name;
+        gchar                *resource_path;
+        gchar                *type;
+        gchar                *domain;
+        gchar                *UUID;
+        gchar                *object_type;
+        gchar                *admin_url;
+        gchar                *uri;
+        gchar                *objAttr;
+        gint64               printer_type,
+                             printer_state;
+        gboolean             got_printer_state,
+                             got_printer_type;
+        int                  port;
+        int                  family;
+        gpointer             user_data;
+} AvahiData;
+
+// #############################################################################
 
 struct _CcPrintersPanel
 {
@@ -82,6 +161,8 @@ struct _CcPrintersPanel
   AdwToast            *toast;
 
   PpCups *cups;
+
+  Avahi  *printer_device_backend;
 
   cups_dest_t *dests;
   int num_dests;
@@ -295,12 +376,63 @@ printer_removed_cb (GObject      *source_object,
     g_warning ("Printer could not be deleted: %s", error->message);
 }
 
+static gboolean
+unsubscribe_general_subscription_cb (gpointer user_data)
+{
+        Avahi *printer_device_backend = user_data;
+
+        for(int i = 0; i < 4; i++)
+        {
+          g_dbus_connection_signal_unsubscribe (printer_device_backend[i].dbus_connection,
+                                              printer_device_backend[i].avahi_service_browser_subscription_id);
+          printer_device_backend[i].avahi_service_browser_subscription_id = 0;
+          printer_device_backend[i].unsubscribe_general_subscription_id = 0;
+        }
+        return G_SOURCE_REMOVE;
+}
+
 static void
 cc_printers_panel_dispose (GObject *object)
 {
   CcPrintersPanel *self = CC_PRINTERS_PANEL (object);
 
   detach_from_cups_notifier (CC_PRINTERS_PANEL (object));
+
+  Avahi *printer_device_backend = self->printer_device_backend;
+  // unsubscribe_general_subscription_cb (self->printer_device_backend);
+  for (int i = 0; i < 4; i++)
+    {
+      if (printer_device_backend[i].avahi_service_browser_subscription_id > 0)
+        {
+          g_dbus_connection_signal_unsubscribe (printer_device_backend[i].dbus_connection,
+                                                printer_device_backend[i].avahi_service_browser_subscription_id);
+          printer_device_backend[i].avahi_service_browser_subscription_id = 0;
+        }
+
+      if (printer_device_backend[i].avahi_service_type_browser_subscription_id > 0)
+        {
+          g_dbus_connection_signal_unsubscribe (printer_device_backend[i].dbus_connection,
+                                                printer_device_backend[i].avahi_service_type_browser_subscription_id);
+          printer_device_backend[i].avahi_service_type_browser_subscription_id = 0;
+        }
+
+      if (printer_device_backend[i].avahi_service_browser_path)
+        {
+          g_dbus_connection_call (printer_device_backend[i].dbus_connection,
+                                  AVAHI_BUS,
+                                  printer_device_backend[i].avahi_service_browser_path,
+                                  AVAHI_SERVICE_BROWSER_IFACE,
+                                  "Free",
+                                  NULL,
+                                  NULL,
+                                  G_DBUS_CALL_FLAGS_NONE,
+                                  -1,
+                                  NULL,
+                                  NULL,
+                                  NULL);
+          g_clear_pointer (&printer_device_backend[i].avahi_service_browser_path, g_free);
+        }
+    }
 
   if (self->deleted_printer_name != NULL)
     {
@@ -774,6 +906,8 @@ static gboolean
 remove_nonexisting_entry (CcPrintersPanel *self,
                           PpPrinterEntry  *entry)
 {
+  if (pp_printer_entry_get_web_interface(entry) != NULL) return FALSE;
+
   gboolean exists = FALSE;
   gint     i;
 
@@ -790,6 +924,29 @@ remove_nonexisting_entry (CcPrintersPanel *self,
     g_hash_table_remove (self->printer_entries, pp_printer_entry_get_name (entry));
 
   return !exists;
+}
+
+
+static void
+add_ipp_device_cb (AvahiData*   data,
+                   cups_dest_t* dest)
+{
+  CcPrintersPanel        *self = (CcPrintersPanel*) data->user_data;
+  GtkWidget              *widget;
+  gpointer                item;
+
+  g_message("%d\n", data->user_data == NULL);
+  /*Making the stack visible*/
+  //widget = (GtkWidget*) gtk_builder_get_object (self->builder, "main-vbox");
+  //gtk_stack_set_visible_child_name (GTK_STACK (widget) , "printers-list");
+  gtk_stack_set_visible_child_name (self->main_stack, "printers-list");
+
+  item = g_hash_table_lookup (self->printer_entries, dest->name);
+
+  if(item == NULL)
+    add_printer_entry (self, *dest);
+
+  update_sensitivity (data->user_data);
 }
 
 static void
@@ -895,6 +1052,468 @@ actualize_printers_list_cb (GObject      *source_object,
     }
 }
 
+static int
+compare_services (gconstpointer      data1,
+                  gconstpointer      data2)
+{
+        AvahiData *data_1 = (AvahiData*)data1;
+        AvahiData *data_2 = (AvahiData*)data2;
+
+        return g_strcmp0 (data_1->name,data_2->name);
+}
+
+static void
+add_option (cups_dest_t* dest,
+            gchar*       attr_name,
+            gchar*       attr_val)
+{
+  dest->options[dest->num_options].name = g_strdup (attr_name);
+  dest->options[dest->num_options].value = g_strdup (attr_val);
+  dest->num_options++;
+
+  return;
+}
+
+static gboolean
+avahi_txt_get_key_value_pair (const gchar  *entry,
+                              gchar       **key,
+                              gchar       **value)
+{
+  const gchar *equal_sign;
+
+  *key = NULL;
+  *value = NULL;
+
+  if (entry != NULL)
+    {
+      equal_sign = strstr (entry, "=");
+
+      if (equal_sign != NULL)
+        {
+          *key = g_strndup (entry, equal_sign - entry);
+          *value = g_strdup (equal_sign + 1);
+
+          return TRUE;
+        }
+    }
+
+  return FALSE;
+}
+
+static void
+add_device (AvahiData* data)
+{
+    cups_dest_t* dest = g_new0 (cups_dest_t, 1);
+    dest->options = g_new0 (cups_option_t, 20);
+    dest->name = g_strdup (data->name);
+    add_option (dest, "UUID", data->UUID);
+    add_option (dest, "device-uri", data->uri);
+
+    if (data->admin_url != NULL)
+      add_option (dest, "printer-more-info", data->admin_url);
+    else
+      add_option (dest, "printer-more-info", g_strdup_printf("http://%s:%d", data->hostname, data->port));
+
+    add_option (dest, "printer-location", data->location);
+    add_option(dest, "hostname", data->hostname);
+    add_option(dest, "OBJ_TYPE", "PRINTER_OBJECT");
+    // data->services = g_list_append(data->services, dest);
+    add_ipp_device_cb(data, dest);
+    return;
+}
+
+static void
+avahi_service_resolver_cb (GObject      *source_object,
+                           GAsyncResult *res,
+                           gpointer      user_data)
+
+{
+        AvahiData               *data;
+        Avahi                   *backend;
+        const char              *name;
+        const char              *hostname;
+        const char              *type;
+        const char              *domain;
+        const char              *address;
+        char                    *key;
+        char                    *value;
+        char                    *tmp;
+        char                    *endptr;
+        GVariant                *txt,
+                                *child,
+                                *output;
+        guint32                  flags;
+        guint16                  port;
+        GError                  *error = NULL;
+        GList                   *iter;
+        gsize                    length;
+        int                      interface;
+        int                      protocol;
+        int                      aprotocol;
+        int                      i;
+
+
+        backend = user_data;
+
+        output = g_dbus_connection_call_finish (G_DBUS_CONNECTION (source_object),
+                                          res,
+                                          &error);
+
+        if (output)
+        {
+
+                g_variant_get (output, "(ii&s&s&s&si&sq@aayu)",
+                               &interface,
+                               &protocol,
+                               &name,
+                               &type,
+                               &domain,
+                               &hostname,
+                               &aprotocol,
+                               &address,
+                               &port,
+                               &txt,
+                               &flags);
+
+                data = g_new0 (AvahiData, 1);
+                data->user_data = backend->user_data;
+
+                if (g_strcmp0 (type, "_ipps-system._tcp") == 0 ||
+                    g_strcmp0 (type, "_ipp-system._tcp") == 0)
+                  {
+                       data->object_type = g_strdup("SYSTEM_OBJECT");
+                  }
+                else
+                  {
+                      data->object_type = g_strdup("PRINTER_OBJECT");
+                  }
+
+            for (i = 0; i < g_variant_n_children (txt); i++)
+            {
+              child = g_variant_get_child_value (txt, i);
+
+              length = g_variant_get_size (child);
+              if (length > 0)
+                {
+                  tmp = g_strndup (g_variant_get_data (child), length);
+                  g_variant_unref (child);
+
+                  if (!avahi_txt_get_key_value_pair (tmp, &key, &value))
+                    {
+                      g_free (tmp);
+                      continue;
+                    }
+
+                  if (g_strcmp0 (key, "rp") == 0)
+                    {
+                      data->resource_path = g_strdup (value);
+                    }
+                  else if (g_strcmp0 (key, "note") == 0)
+                    {
+                      data->location = g_strdup (value);
+                    }
+                  else if (g_strcmp0 (key, "printer-type") == 0)
+                    {
+                      endptr = NULL;
+                      data->printer_type = g_ascii_strtoull (value, &endptr, 16);
+                      if (data->printer_type != 0 || endptr != value)
+                        data->got_printer_type = TRUE;
+                    }
+                  else if (g_strcmp0 (key, "printer-state") == 0)
+                    {
+                      endptr = NULL;
+                      data->printer_state = g_ascii_strtoull (value, &endptr, 10);
+                      if (data->printer_state != 0 || endptr != value)
+                        data->got_printer_state = TRUE;
+                    }
+                  else if (g_strcmp0 (key, "UUID") == 0)
+                    {
+                      if (*value != '\0')
+                        data->UUID = g_strdup (value);
+                    }
+                  else if (g_strcmp0 (key, "adminurl") == 0)
+                    {
+                      if (*value != '\0')
+                        data->admin_url = g_strdup (value);
+                    }
+                  g_clear_pointer (&key, g_free);
+                  g_clear_pointer (&value, g_free);
+                  g_free (tmp);
+                }
+              else
+                {
+                  g_variant_unref (child);
+                }
+            }
+
+                data->address = g_strdup (address);
+                data->hostname = g_strdup (hostname);
+                data->port = port;
+                data->family = protocol;
+                data->name = g_strdup (name);
+                data->type = g_strdup (type);
+                data->domain = g_strdup (domain);
+                data->services = NULL;
+
+                g_variant_unref (txt);
+                g_variant_unref (output);
+
+                iter = g_list_find_custom (backend->system_objects, (gconstpointer) data, (GCompareFunc) compare_services);
+                if (iter == NULL)
+                  {
+                     backend->system_objects = g_list_append (backend->system_objects, data);
+                    //  if (g_strcmp0(data->object_type, "SYSTEM_OBJECT") == 0)
+                    //   get_services (data);
+                    //  else    Check new method for getting device from IPP request
+                      add_device (data);
+
+                  }
+                else
+                 {
+                     g_free (data->location);
+                     g_free (data->address);
+                     g_free (data->hostname);
+                     g_free (data->name);
+                     g_free (data->resource_path);
+                     g_free (data->type);
+                     g_free (data->domain);
+                     g_free (data);
+                 }
+         }
+        else
+         {
+                if (!g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
+                  {
+                        char *message = g_strdup_printf ("%s", error->message);
+                        // _cph_cups_set_internal_status ( backend->cups, message );
+                        g_free (message);
+                  }
+                g_error_free (error);
+         }
+
+        return;
+}
+
+static void
+avahi_service_browser_signal_handler (GDBusConnection *connection,
+                                      const char      *sender_name,
+                                      const char      *object_path,
+                                      const char      *interface_name,
+                                      const char      *signal_name,
+                                      GVariant        *parameters,
+                                      gpointer         user_data)
+{
+        Avahi               *backend;
+        char                *name;
+        char                *type;
+        char                *domain;
+        guint                flags;
+        int                  interface;
+        int                  protocol;
+
+        backend = user_data;
+
+        if (g_strcmp0 (signal_name, "ItemNew") == 0)
+          {
+            g_variant_get (parameters, "(ii&s&s&su)",
+                           &interface,
+                           &protocol,
+                           &name,
+                           &type,
+                           &domain,
+                           &flags);
+
+              g_dbus_connection_call (backend->dbus_connection,
+                        AVAHI_BUS,
+                        "/",
+                        AVAHI_SERVER_IFACE,
+                        "ResolveService",
+                        g_variant_new ("(iisssiu)",
+                                       interface,
+                                       protocol,
+                                       name,
+                                       type,
+                                       domain,
+                                       AVAHI_PROTO_UNSPEC,
+                                       0),
+                        G_VARIANT_TYPE ("(iissssisqaayu)"),
+                        G_DBUS_CALL_FLAGS_NONE,
+                        -1,
+                        backend->avahi_cancellable,
+                        avahi_service_resolver_cb,
+                        backend);
+
+          }
+        else if (g_strcmp0 (signal_name, "ItemRemove") == 0)
+          {
+            g_variant_get (parameters, "(ii&s&s&su)",
+                           &interface,
+                           &protocol,
+                           &name,
+                           &type,
+                           &domain,
+                           &flags);
+
+
+                 GList *iter = g_list_find_custom (backend->system_objects, name , (GCompareFunc) compare_services);
+                if (iter != NULL)
+                  {
+                    backend->system_objects = g_list_delete_link (backend->system_objects, iter);
+                    g_free (iter->data);
+                  }
+
+          }
+        else if (g_strcmp0 (signal_name, "AllForNow"))
+          {
+
+          }
+
+   return;
+}
+
+static void
+avahi_service_browser_new_cb (GObject           *source_object,
+                              GAsyncResult      *res,
+                              gpointer           user_data)
+{
+        Avahi               *printer_device_backend;
+        GError              *error = NULL;
+        GVariant            *output = NULL;
+
+        output = g_dbus_connection_call_finish (G_DBUS_CONNECTION (source_object),
+                                          res,
+                                          &error);
+        printer_device_backend = user_data;
+
+        if (output)
+          {
+
+            g_variant_get (output, "(o)", &printer_device_backend->avahi_service_browser_path);
+            printer_device_backend->avahi_service_type_browser_subscription_id =
+              g_dbus_connection_signal_subscribe (printer_device_backend->dbus_connection,
+                                                  NULL,
+                                                  AVAHI_SERVICE_BROWSER_IFACE,
+                                                  NULL,
+                                                  printer_device_backend->avahi_service_browser_path,
+                                                  NULL,
+                                                  G_DBUS_SIGNAL_FLAGS_NONE,
+                                                  avahi_service_browser_signal_handler,
+                                                  printer_device_backend,
+                                                  NULL);
+
+            if (printer_device_backend->avahi_service_browser_path &&
+                printer_device_backend->avahi_service_type_browser_subscription_id > 0)
+              {
+                g_dbus_connection_signal_unsubscribe (printer_device_backend->dbus_connection,
+                                                      printer_device_backend->avahi_service_browser_subscription_id);
+                printer_device_backend->avahi_service_browser_subscription_id = 0;
+              }
+
+            g_variant_unref (output);
+          }
+        else
+          {
+            /*
+             * The creation of ServiceBrowser fails with G_IO_ERROR_DBUS_ERROR
+             * if Avahi is disabled.
+             */
+            if (!g_error_matches (error, G_IO_ERROR, G_IO_ERROR_DBUS_ERROR) &&
+                !g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
+                //  _cph_cups_set_internal_status(printer_device_backend->cups, g_strdup_printf("%s", error->message));
+            g_error_free (error);
+          }
+
+}
+
+static void
+cups_get_ipp_devices_cb (GObject     *source_object,
+                        GAsyncResult *result,
+                        gpointer      user_data)
+{
+        Avahi*                  printer_device_backend;
+        g_autoptr(GError)       error = NULL;
+        pp_cups_get_dests_finish (PP_CUPS (source_object), result, &error);
+
+        CcPrintersPanel  *self = (CcPrintersPanel*) user_data;
+        printer_device_backend = self -> printer_device_backend;
+        for(int i = 0; i < 4; i++)
+        {/*
+         * We need to subscribe to signals of service browser before
+         * we actually create it because it starts to emit them right
+         * after its creation.
+         */
+        printer_device_backend[i].user_data = user_data;
+
+        printer_device_backend[i].avahi_service_browser_subscription_id =
+        g_dbus_connection_signal_subscribe  (printer_device_backend[i].dbus_connection,
+                                               NULL,
+                                               AVAHI_SERVICE_BROWSER_IFACE,
+                                               NULL,
+                                               NULL,
+                                               NULL,
+                                               G_DBUS_SIGNAL_FLAGS_NONE,
+                                               avahi_service_browser_signal_handler,
+                                               &printer_device_backend[i],
+                                               NULL);
+
+        g_dbus_connection_call (printer_device_backend[i].dbus_connection,
+                                AVAHI_BUS,
+                                "/",
+                                AVAHI_SERVER_IFACE,
+                                "ServiceBrowserNew",
+                                g_variant_new ("(iissu)",
+                                               AVAHI_IF_UNSPEC,
+                                               AVAHI_PROTO_UNSPEC,
+                                               printer_device_backend[i].service_type,
+                                               "",
+                                               0),
+                                G_VARIANT_TYPE ("(o)"),
+                                G_DBUS_CALL_FLAGS_NONE,
+                                -1,
+                                printer_device_backend[i].avahi_cancellable,
+                                avahi_service_browser_new_cb,
+                                &printer_device_backend[i]);
+        }
+        return;
+}
+
+static gboolean
+comp_entries (gconstpointer a,
+              gconstpointer b)
+{
+    char *entry_1 = (char*)a;
+    char *entry_2 = (char*)b;
+
+    return !g_strcmp0 (entry_1, entry_2);
+}
+
+static void
+add_interface_data (cups_dest_t* dest,
+                    cups_dest_t* src)
+{
+  src->instance = dest->instance;
+  src->is_default = dest->is_default;
+
+    for (int i = 0; i < dest->num_options; i++)
+      add_option (src, dest->options[i].name, dest->options[i].value);
+
+    // add_option (src, "sanitize-name", "TRUE");
+
+    *dest = *src;
+
+    return;
+}
+
+
+static void
+actualize_ipp_device_list (CcPrintersPanel *self)
+{
+  pp_cups_get_dests_async (self->cups,
+                           cc_panel_get_cancellable (CC_PANEL (self)),
+                           cups_get_ipp_devices_cb,
+                           self);
+}
+
 static void
 actualize_printers_list (CcPrintersPanel *self)
 {
@@ -947,6 +1566,7 @@ new_printer_dialog_response_cb (GtkWindow *_dialog,
       g_object_get(G_OBJECT (new_printer), "name", &self->new_printer_name, NULL);
 
       actualize_printers_list (self);
+      actualize_ipp_device_list (self);
 
       pp_new_printer_add_async (new_printer,
                                 cc_panel_get_cancellable (CC_PANEL (self)),
@@ -1018,6 +1638,7 @@ static void
 on_permission_changed (CcPrintersPanel *self)
 {
   actualize_printers_list (self);
+  actualize_ipp_device_list (self);
   update_sensitivity (self);
 }
 
@@ -1049,6 +1670,7 @@ cups_status_check_cb (GObject      *source_object,
   if (success)
     {
       actualize_printers_list (self);
+      actualize_ipp_device_list (self);
       attach_to_cups_notifier (self);
 
       g_clear_handle_id (&self->cups_status_check_id, g_source_remove);
@@ -1108,6 +1730,54 @@ get_all_ppds_async_cb (PPDList  *ppds,
                                         self->all_ppds_list);
 }
 
+static gint
+sort_function (GtkListBoxRow *row1,
+               GtkListBoxRow *row2,
+               gpointer       user_data)
+{
+  PpPrinterEntry *entry1 = PP_PRINTER_ENTRY (row1);
+  PpPrinterEntry *entry2 = PP_PRINTER_ENTRY (row2);
+
+  int val;
+
+  if (pp_printer_entry_get_hostname (entry1) != NULL)
+    {
+      if (pp_printer_entry_get_hostname (entry2) != NULL)
+        {
+          val = g_ascii_strcasecmp (pp_printer_entry_get_hostname (entry1), pp_printer_entry_get_hostname (entry2));
+
+          if (val == 0)
+           {
+              if (pp_printer_entry_get_name (entry1) != NULL)
+               {
+                  if (pp_printer_entry_get_name (entry2) != NULL)
+                    return g_ascii_strcasecmp (pp_printer_entry_get_name (entry1), pp_printer_entry_get_name (entry2));
+                  else
+                    return 1;
+               }
+               else
+               {
+                   if (pp_printer_entry_get_name (entry2) != NULL)
+                      return -1;
+                    else
+                      return 0;
+               }
+          }
+
+          return val;
+        }
+      else
+        return 1;
+    }
+  else
+    {
+      if (pp_printer_entry_get_hostname (entry2) != NULL)
+        return -1;
+      else
+        return 0;
+    }
+}
+
 static gboolean
 filter_function (GtkListBoxRow *row,
                  gpointer       user_data)
@@ -1162,29 +1832,29 @@ filter_function (GtkListBoxRow *row,
   return retval;
 }
 
-static gint
-sort_function (GtkListBoxRow *row1,
-               GtkListBoxRow *row2,
-               gpointer       user_data)
-{
-  PpPrinterEntry *entry1 = PP_PRINTER_ENTRY (row1);
-  PpPrinterEntry *entry2 = PP_PRINTER_ENTRY (row2);
+//static gint
+//sort_function (GtkListBoxRow *row1,
+  //             GtkListBoxRow *row2,
+    //           gpointer       user_data)
+//{
+  //PpPrinterEntry *entry1 = PP_PRINTER_ENTRY (row1);
+  //PpPrinterEntry *entry2 = PP_PRINTER_ENTRY (row2);
 
-  if (pp_printer_entry_get_name (entry1) != NULL)
-    {
-      if (pp_printer_entry_get_name (entry2) != NULL)
-        return g_ascii_strcasecmp (pp_printer_entry_get_name (entry1), pp_printer_entry_get_name (entry2));
-      else
-        return 1;
-    }
-  else
-    {
-      if (pp_printer_entry_get_name (entry2) != NULL)
-        return -1;
-      else
-        return 0;
-    }
-}
+  //if (pp_printer_entry_get_name (entry1) != NULL)
+    //{
+      //if (pp_printer_entry_get_name (entry2) != NULL)
+        //return g_ascii_strcasecmp (pp_printer_entry_get_name (entry1), pp_printer_entry_get_name (entry2));
+      //else
+        //return 1;
+    //}
+  //else
+    //{
+      //if (pp_printer_entry_get_name (entry2) != NULL)
+        //return -1;
+      //else
+        //return 0;
+    //}
+//}
 
 static void
 cc_printers_panel_class_init (CcPrintersPanelClass *klass)
@@ -1304,6 +1974,24 @@ cc_printers_panel_init (CcPrintersPanel *self)
 Please check your installation");
 
   self->size_group = gtk_size_group_new (GTK_SIZE_GROUP_HORIZONTAL);
+
+
+  self->printer_device_backend = g_new0(Avahi, 4);
+  for (int x = 0; x < 4; x++)
+  {
+    // printer_device_backend[x] = g_new0 (Avahi, 1);
+    self->printer_device_backend[x].system_objects = NULL;
+    self->printer_device_backend[x].avahi_cancellable = g_cancellable_new ();
+    self->printer_device_backend[x].dbus_connection = g_bus_get_sync (G_BUS_TYPE_SYSTEM, self->printer_device_backend[x].avahi_cancellable, NULL);
+    self->printer_device_backend[x].loop =  g_main_loop_new(NULL, FALSE);
+    // self->printer_device_backend[x].user_data = user_data;
+  }
+
+  self->printer_device_backend[0].service_type = "_ipps-system._tcp";
+  self->printer_device_backend[1].service_type = "_ipp-system._tcp";
+  self->printer_device_backend[2].service_type = "_ipps._tcp";
+  self->printer_device_backend[3].service_type = "_ipp._tcp";
+  actualize_ipp_device_list (self);
 
   actualize_printers_list (self);
   attach_to_cups_notifier (self);

@@ -30,7 +30,9 @@ sources = files(
   'pp-printer-entry.c',
   'pp-printer.c',
   'pp-samba.c',
-  'pp-utils.c'
+  'pp-utils.c',
+  'pp-ipp-device.c',
+  'pp-printer-app-selection-dialog.c'
 )
 
 sources += gnome.compile_resources(
