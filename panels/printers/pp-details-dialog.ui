@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <template class="PpDetailsDialog" parent="AdwDialog">
-    <property name="width_request">400</property>
-    <property name="height_request">400</property>
+    <property name="content-width">360</property>
     <property name="child">
       <object class="AdwToolbarView">
         <child type="top">
@@ -107,14 +106,25 @@
               </object>
             </child>
 
-             <child>
+            <child>
               <object class="AdwPreferencesGroup" id="driver_button_rows_group">
-                <property name="width_request">140</property>
                 <property name="separate-rows">True</property>
-
+                <child>
+                  <object class="AdwButtonRow" id="search_for_drivers_button_row">
+                    <property name="title" translatable="yes">_Search for Drivers</property>
+                    <property name="use-underline">True</property>
+                    <signal name="activated" handler="search_for_drivers" object="PpDetailsDialog" swapped="yes"/>
+                  </object>
+                </child>
                 <child>
                   <object class="AdwButtonRow">
-                    <property name="width_request">140</property>
+                    <property name="title" translatable="yes">S_elect from Database…</property>
+                    <property name="use-underline">True</property>
+                    <signal name="activated" handler="select_ppd_in_dialog" object="PpDetailsDialog" swapped="yes"/>
+                  </object>
+                </child>
+                <child>
+                  <object class="AdwButtonRow">
                     <property name="title" translatable="yes">_Install PPD File…</property>
                     <property name="use-underline">True</property>
                     <signal name="activated" handler="select_ppd_manually" object="PpDetailsDialog" swapped="yes"/>
@@ -129,3 +139,4 @@
     </property>
   </template>
 </interface>
+

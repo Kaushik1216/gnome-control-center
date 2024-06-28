@@ -69,8 +69,8 @@ struct _CcDesktopSharingPage {
   AdwActionRow *port_row;
   GtkWidget    *username_entry;
   GtkWidget    *password_entry;
-  AdwActionRow *generate_password_button_row;
-  AdwActionRow *verify_encryption_button_row;
+  AdwButtonRow *generate_password_button_row;
+  AdwButtonRow *verify_encryption_button_row;
 
   guint desktop_sharing_name_watch;
   guint store_credentials_id;

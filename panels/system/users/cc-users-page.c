@@ -50,8 +50,8 @@
 struct _CcUsersPage {
     AdwNavigationPage  parent_instance;
 
-    AdwActionRow     *add_user_button_row;
-    AdwActionRow      *add_enterprise_user_button_row;
+    AdwButtonRow      *add_user_button_row;
+    AdwButtonRow      *add_enterprise_user_button_row;
     CcUserPage        *current_user_page;
     AdwNavigationView *navigation;
     GtkWidget         *other_users_group;
