@@ -241,18 +241,22 @@
        <item>
         <attribute name="label" translatable="yes">Web Interface</attribute>
         <attribute name="action">printer.webinterface</attribute>
+        <attribute name="hidden-when">action-disabled</attribute>
       </item>
       <item>
         <attribute name="label" translatable="yes">Printing Options</attribute>
         <attribute name="action">printer.options</attribute>
+        <attribute name="hidden-when">action-disabled</attribute>
       </item>
       <item>
         <attribute name="label" translatable="yes">Printer Details</attribute>
         <attribute name="action">printer.details</attribute>
+        <attribute name="hidden-when">action-disabled</attribute>
       </item>
       <item>
         <attribute name="label" translatable="yes" comments="Set this printer as default">Use Printer by Default</attribute>
         <attribute name="action">printer.default</attribute>
+        <attribute name="hidden-when">action-disabled</attribute>
       </item>
       <item>
         <attribute name="label" translatable="yes" comments="Translators: This button executes command which cleans print heads of the printer.">Clean Print Heads</attribute>
@@ -262,8 +266,8 @@
       <item>
         <attribute name="label" translatable="yes">Remove Printer</attribute>
         <attribute name="action">printer.remove</attribute>
+        <attribute name="hidden-when">action-disabled</attribute>
       </item>
     </section>
   </menu>
-
 </interface>

@@ -1640,7 +1640,7 @@ populate_devices_list (PpNewPrinterDialog *self)
   gtk_tree_model_filter_set_visible_column (self->devices_model_filter, DEVICE_VISIBLE_COLUMN);
 
   cups = pp_cups_new ();
-  pp_cups_get_dests_async (cups, self->cancellable, cups_get_dests_cb, self);
+  pp_cups_get_dests_async (cups, self->cancellable, cups_get_dests_cb,1 ,self);
 
   self->samba_searching = TRUE;
   update_dialog_state (self);
@@ -1751,7 +1751,7 @@ add_cb (PpNewPrinterDialog *self)
             //                            GTK_WINDOW (self));
 
           /* New device will be set at return from ppd selection */
-          //gtk_widget_set_visible (GTK_WIDGET (self->ppd_selection_dialog), TRUE);
+          //gtk_widget_set_visible (GTK_WIDGET (self->ppd_selection_diacupsGetDestslog), TRUE);
         //}
       //else
         //{

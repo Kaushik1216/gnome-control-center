@@ -372,12 +372,10 @@ on_printer_rename_cb (GObject      *source_object,
 }
 
 static void
-on_click_web_interface (GtkButton      *button,
-                        PpPrinterEntry *self)
+on_click_web_interface (PpPrinterEntry *self)
 {
-    //gtk_show_uri_on_window (self, self->web_interface, 0, NULL);
-    //gtk_window_present (GTK_WINDOW (self));
-    //gtk_show_uri_with_window (NULL, self->web_interface, gtk_get_current_event_time(), NULL);
+    GtkUriLauncher* url = (GtkUriLauncher*)self->web_interface;
+    gtk_uri_launcher_launch(url, NULL, NULL,NULL, NULL);
     return;
 }
 
@@ -805,7 +803,6 @@ pp_printer_entry_update (PpPrinterEntry *self,
     }
 
   self->printer_state = PRINTER_READY;
-
   for (i = 0; i < printer.num_options; i++)
     {
       if (g_strcmp0 (printer.options[i].name, "device-uri") == 0)
@@ -906,13 +903,14 @@ pp_printer_entry_update (PpPrinterEntry *self,
     }
 
    if (web_interface != NULL)
-    {
-       gtk_widget_set_visible (GTK_WIDGET (self->web_interface_btn), TRUE);
-       gtk_link_button_set_uri (self->web_interface_btn, web_interface);
-       gtk_widget_set_sensitive (GTK_WIDGET (self->web_interface_btn), TRUE);
-    }
+   {
+       gtk_widget_action_set_enabled (GTK_WIDGET (self), "printer.options", FALSE);
+       gtk_widget_action_set_enabled (GTK_WIDGET (self), "printer.details", FALSE);
+       gtk_widget_action_set_enabled (GTK_WIDGET (self), "printer.default", self->is_authorized);
+       gtk_widget_action_set_enabled (GTK_WIDGET (self), "printer.remove", self->is_authorized);
+   }
   else {
-     gtk_widget_set_visible (GTK_WIDGET (self->web_interface_btn), FALSE);
+     gtk_widget_action_set_enabled (GTK_WIDGET (self), "printer.webinterface", TRUE);
   }
 
   if ((self->printer_state == PRINTER_STOPPED || !is_accepting_jobs) &&
@@ -969,10 +967,10 @@ pp_printer_entry_update (PpPrinterEntry *self,
     self->printer_make_and_model = sanitize_printer_model (printer_make_and_model);
   else
   {
-      gtk_widget_hide (GTK_WIDGET (self->printer_detail_btn));
-      gtk_widget_hide (GTK_WIDGET (self->printer_options_dialog_btn));
-      //gtk_widget_hide (GTK_WIDGET (self->printer_default_checkbutton));
-      //gtk_widget_hide (GTK_WIDGET (self->remove_printer_menuitem)); removed in new version
+      gtk_widget_action_set_enabled (GTK_WIDGET (self), "printer.options", FALSE);
+      gtk_widget_action_set_enabled (GTK_WIDGET (self), "printer.details", FALSE);
+      gtk_widget_action_set_enabled (GTK_WIDGET (self), "printer.remove", FALSE);
+      gtk_widget_action_set_enabled (GTK_WIDGET (self), "printer.default", FALSE);
   }
 
   self->printer_make_and_model = sanitize_printer_model (printer_make_and_model);
@@ -1003,8 +1001,6 @@ pp_printer_entry_update (PpPrinterEntry *self,
 
   pp_printer_entry_update_jobs_count (self);
 
-  gtk_widget_action_set_enabled (GTK_WIDGET (self), "printer.default", self->is_authorized);
-  gtk_widget_action_set_enabled (GTK_WIDGET (self), "printer.remove", self->is_authorized);
 }
 
 static void

@@ -39,6 +39,7 @@ PpCups      *pp_cups_new              (void);
 void         pp_cups_get_dests_async  (PpCups               *cups,
                                        GCancellable         *cancellable,
                                        GAsyncReadyCallback   callback,
+                                       int num,
                                        gpointer              user_data);
 
 PpCupsDests *pp_cups_get_dests_finish (PpCups               *cups,

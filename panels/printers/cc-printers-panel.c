@@ -212,6 +212,7 @@ enum {
   PROP_COMPACT,
 };
 
+static void actualize_ipp_device_list (CcPrintersPanel *self);
 static void actualize_printers_list (CcPrintersPanel *self);
 static void update_sensitivity (gpointer user_data);
 static void detach_from_cups_notifier (gpointer data);
@@ -576,7 +577,10 @@ on_cups_notification (GDBusConnection *connection,
       g_strcmp0 (signal_name, "PrinterDeleted") == 0 ||
       g_strcmp0 (signal_name, "PrinterStateChanged") == 0 ||
       g_strcmp0 (signal_name, "PrinterStopped") == 0)
+  {
+    //actualize_ipp_device_list(self);
     actualize_printers_list (self);
+  }
   else if (g_strcmp0 (signal_name, "JobCreated") == 0 ||
            g_strcmp0 (signal_name, "JobCompleted") == 0)
     {
@@ -827,6 +831,7 @@ on_printer_renamed (CcPrintersPanel *self,
 static void
 on_printer_changed (CcPrintersPanel *self)
 {
+  actualize_ipp_device_list(self);
   actualize_printers_list (self);
 }
 
@@ -927,6 +932,7 @@ add_ipp_device_cb (AvahiData*   data,
   //gtk_stack_set_visible_child_name (GTK_STACK (widget) , "printers-list");
   gtk_stack_set_visible_child_name (self->main_stack, "printers-list");
 
+  //gpointer isremove = g_hash_table_remove(self->printer_entries, dest->name);
   item = g_hash_table_lookup (self->printer_entries, dest->name);
 
   if(item == NULL)
@@ -1497,7 +1503,8 @@ actualize_ipp_device_list (CcPrintersPanel *self)
   pp_cups_get_dests_async (self->cups,
                            cc_panel_get_cancellable (CC_PANEL (self)),
                            cups_get_ipp_devices_cb,
-                           self);
+                           0,
+                          self);
 }
 
 static void
@@ -1506,6 +1513,7 @@ actualize_printers_list (CcPrintersPanel *self)
   pp_cups_get_dests_async (self->cups,
                            cc_panel_get_cancellable (CC_PANEL (self)),
                            actualize_printers_list_cb,
+                           1,
                            self);
 }
 
@@ -1541,7 +1549,7 @@ printer_add_async_cb (GObject      *source_object,
           gtk_window_present (GTK_WINDOW (message_dialog));
         }
     }
-  actualize_ipp_device_list (self);
+  //actualize_ipp_device_list (self);
   actualize_printers_list (self);
 }
 
@@ -1559,6 +1567,7 @@ new_printer_dialog_response_cb (GtkWindow *_dialog,
       new_printer = pp_new_printer_dialog_get_new_printer (pp_new_printer_dialog);
       g_object_get(G_OBJECT (new_printer), "name", &self->new_printer_name, NULL);
 
+      //actualize_ipp_device_list (self);
       actualize_printers_list (self);
 
       pp_new_printer_add_async (new_printer,
@@ -1630,8 +1639,8 @@ update_sensitivity (gpointer user_data)
 static void
 on_permission_changed (CcPrintersPanel *self)
 {
+  //actualize_ipp_device_list (self);
   actualize_printers_list (self);
-  actualize_ipp_device_list (self);
   update_sensitivity (self);
 }
 
@@ -1662,6 +1671,7 @@ cups_status_check_cb (GObject      *source_object,
   success = pp_cups_connection_test_finish (PP_CUPS (source_object), result, NULL);
   if (success)
     {
+      //actualize_ipp_device_list (self);
       actualize_printers_list (self);
       attach_to_cups_notifier (self);
 

@@ -84,7 +84,7 @@ _pp_cups_get_dests_thread (GTask        *task,
 }
 
 static void
-pp_cups_get_new_dests_thread (GTask        *task,
+_pp_cups_get_new_dests_thread (GTask        *task,
                                gpointer     *object,
                                gpointer      task_data,
                                GCancellable *cancellable)
@@ -99,7 +99,7 @@ pp_cups_get_new_dests_thread (GTask        *task,
     }
   else
     {
-      // pp_cups_dests_free (backends);
+      //pp_cups_dests_free (backends);
       g_message("Cancelled discovery for ipp devices\n");
     }
 }
@@ -108,13 +108,23 @@ void
 pp_cups_get_dests_async (PpCups              *self,
                          GCancellable        *cancellable,
                          GAsyncReadyCallback  callback,
+                         int num,
                          gpointer             user_data)
 {
-  g_autoptr(GTask) task = NULL;
 
-  task = g_task_new (self, cancellable, callback, user_data);
-  g_task_set_return_on_cancel (task, TRUE);
-  g_task_run_in_thread (task, (GTaskThreadFunc) _pp_cups_get_dests_thread);
+  // list printer discover by cups
+  if(num==1) {
+      g_autoptr(GTask) task = NULL;
+      task = g_task_new (self, cancellable, callback, user_data);
+      g_task_set_return_on_cancel (task, TRUE);
+      g_task_run_in_thread (task, (GTaskThreadFunc) _pp_cups_get_dests_thread);
+  }
+  else {
+      g_autoptr(GTask) task = NULL;
+      task = g_task_new (self, cancellable, callback, user_data);
+      g_task_set_return_on_cancel (task, TRUE);
+      g_task_run_in_thread (task, (GTaskThreadFunc) _pp_cups_get_new_dests_thread);
+  }
 }
 
 PpCupsDests *
