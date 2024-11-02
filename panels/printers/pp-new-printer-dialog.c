@@ -29,9 +29,10 @@
 #include <gdk/x11/gdkx.h>
 #include <gtk/gtk.h>
 
-#include "pp-new-printer-dialog.h"
+#include "cc-printers-panel.h"
 #include "pp-cups.h"
 #include "pp-host.h"
+#include "pp-new-printer-dialog.h"
 #include "pp-new-printer.h"
 #include "pp-ppd-selection-dialog.h"
 #include "pp-printer-app-selection-dialog.h"
@@ -128,6 +129,7 @@ struct _PpNewPrinterDialog
 
   UserResponseCallback user_callback;
   gpointer             user_data;
+  gpointer             ipp_data;
 
   cups_dest_t *dests;
   gint         num_of_dests;
@@ -1722,8 +1724,8 @@ add_cb (PpNewPrinterDialog *self)
   GtkTreeIter                iter;
   gint                       acquisition_method;
 
-  //g_cancellable_cancel (self->cancellable);
-  //g_clear_object (&self->cancellable);
+  g_cancellable_cancel (self->cancellable);
+  g_clear_object (&self->cancellable);
 
   if (gtk_tree_selection_get_selected (gtk_tree_view_get_selection (self->devices_treeview), &model, &iter))
     {
@@ -1734,6 +1736,10 @@ add_cb (PpNewPrinterDialog *self)
 
   if (device)
     {
+          self->app_printer_dialog = pp_app_printer_dialog_new (device , self->ipp_data);
+          gtk_window_set_transient_for (GTK_WINDOW (self->app_printer_dialog),
+                                            GTK_WINDOW (self));
+          gtk_widget_show ( GTK_WIDGET (self->app_printer_dialog));
       //acquisition_method = pp_print_device_get_acquisition_method (device);
       //if (acquisition_method == ACQUISITION_METHOD_SAMBA ||
         //  acquisition_method == ACQUISITION_METHOD_SAMBA_HOST ||
@@ -1751,28 +1757,21 @@ add_cb (PpNewPrinterDialog *self)
             //                            GTK_WINDOW (self));
 
           /* New device will be set at return from ppd selection */
-          //gtk_widget_set_visible (GTK_WIDGET (self->ppd_selection_diacupsGetDestslog), TRUE);
+          //gtk_widget_set_visible (GTK_WIDGET (self->ppd_selection_dialog), TRUE);
         //}
       //else
         //{
           //self->new_device = pp_print_device_copy (device);
           //self->user_callback (GTK_WINDOW (self), GTK_RESPONSE_OK, self->user_data);
         //}
-         self->app_printer_dialog = pp_app_printer_dialog_new (device);
-         gtk_window_set_transient_for (GTK_WINDOW (self->app_printer_dialog),
-                                            GTK_WINDOW (self));
-         gtk_widget_show ( GTK_WIDGET (self->app_printer_dialog));
-     }
-    else
-     {
-       self->user_callback (GTK_WINDOW (self), GTK_RESPONSE_CANCEL, self->user_data);
-     }
+    }
 }
 
 PpNewPrinterDialog *
 pp_new_printer_dialog_new (PPDList              *ppd_list,
                            UserResponseCallback  user_callback,
-                           gpointer              user_data)
+                           gpointer              user_data,
+                           gpointer              ipp_data)
 {
   PpNewPrinterDialog *self;
 
@@ -1780,11 +1779,10 @@ pp_new_printer_dialog_new (PPDList              *ppd_list,
 
   self->user_callback = user_callback;
   self->user_data = user_data;
-
+  self->ipp_data = ipp_data;
   self->list = ppd_list_copy (ppd_list);
 
   self->local_cups_devices = g_ptr_array_new_with_free_func (g_object_unref);
-
   /* GCancellable for cancelling of async operations */
   self->cancellable = g_cancellable_new ();
 
@@ -1800,7 +1798,6 @@ pp_new_printer_dialog_new (PPDList              *ppd_list,
 
   /* Fill with data */
   populate_devices_list (self);
-
   return self;
 }
 
@@ -1905,7 +1902,6 @@ pp_new_printer_dialog_class_init (PpNewPrinterDialogClass *klass)
   gtk_widget_class_add_binding_action (widget_class, GDK_KEY_Escape, 0, "window.close", NULL);
 }
 
-
 void
 pp_new_printer_dialog_init (PpNewPrinterDialog *self)
 {
@@ -1943,6 +1939,20 @@ pp_new_printer_dialog_get_new_printer (PpNewPrinterDialog *self)
                 "is-network-device", pp_print_device_is_network_device (self->new_device),
                 "window-id", 0,
                 NULL);
+ printf("device-name: %s\n", pp_print_device_get_device_name (self->new_device));
+                       printf("display-name: %s\n", pp_print_device_get_display_name (self->new_device));
+                       printf("device-original-name: %s\n", pp_print_device_get_device_original_name (self->new_device));
+                       printf("device-make-and-model: %s\n", pp_print_device_get_device_make_and_model (self->new_device));
+                       printf("device-location: %s\n", pp_print_device_get_device_location (self->new_device));
+                       printf("device-info: %s\n", pp_print_device_get_device_info (self->new_device));
+                       printf("device-uri: %s\n", pp_print_device_get_device_uri (self->new_device));
+                       printf("device-id: %s\n", pp_print_device_get_device_id (self->new_device));
+                       printf("device-ppd: %s\n", pp_print_device_get_device_ppd (self->new_device));
+                       printf("host-name: %s\n", pp_print_device_get_host_name (self->new_device));
+                       printf("host-port: %d\n", pp_print_device_get_host_port (self->new_device));
+                       printf("is-authenticated-server: %d\n", pp_print_device_is_authenticated_server (self->new_device));
+                       printf("acquisition-method: %d\n", pp_print_device_get_acquisition_method (self->new_device));
+                       printf("is-network-device: %d\n", pp_print_device_is_network_device (self->new_device));
 
   return new_printer;
 }

@@ -427,10 +427,24 @@ pp_print_device_is_network_device (PpPrintDevice *self)
 {
   return self->is_network_device;
 }
-
+#include<stdio.h>
 PpPrintDevice *
 pp_print_device_copy (PpPrintDevice *self)
 {
+         printf("device-name: %s\n", pp_print_device_get_device_name (self));
+                       printf("display-name: %s\n", pp_print_device_get_display_name (self));
+                       printf("device-original-name: %s\n", pp_print_device_get_device_original_name (self));
+                       printf("device-make-and-model: %s\n", pp_print_device_get_device_make_and_model (self));
+                       printf("device-location: %s\n", pp_print_device_get_device_location (self));
+                       printf("device-info: %s\n", pp_print_device_get_device_info (self));
+                       printf("device-uri: %s\n", pp_print_device_get_device_uri (self));
+                       printf("device-id: %s\n", pp_print_device_get_device_id (self));
+                       printf("device-ppd: %s\n", pp_print_device_get_device_ppd (self));
+                       printf("host-name: %s\n", pp_print_device_get_host_name (self));
+                       printf("host-port: %d\n", pp_print_device_get_host_port (self));
+                       printf("is-authenticated-server: %d\n", pp_print_device_is_authenticated_server (self));
+                       printf("acquisition-method: %d\n", pp_print_device_get_acquisition_method (self));
+                       printf("is-network-device: %d\n", pp_print_device_is_network_device (self));
   return g_object_new (PP_TYPE_PRINT_DEVICE,
                        "device-name", pp_print_device_get_device_name (self),
                        "display-name", pp_print_device_get_display_name (self),

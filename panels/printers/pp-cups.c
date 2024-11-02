@@ -72,7 +72,6 @@ _pp_cups_get_dests_thread (GTask        *task,
 
   dests = g_new0 (PpCupsDests, 1);
   dests->num_of_dests = cupsGetDests (&dests->dests);
-
   if (g_task_set_return_on_cancel (task, FALSE))
     {
       g_task_return_pointer (task, dests, (GDestroyNotify) pp_cups_dests_free);

@@ -1,90 +1,196 @@
-<?xml version='1.0' encoding='UTF-8'?>
-<!-- Created with Cambalache 0.10.3 -->
+<?xml version="1.0"?>
 <interface>
-  <!-- interface-name app-printer-dialog.ui -->
-  <requires lib="gtk" version="4.6"/>
+  <requires lib="gtk+" version="3.12"/>
   <template class="PpAppPrinterDialog" parent="GtkDialog">
-    <property name="child">
-      <object class="GtkBox" id="app_printer_main_box">
+    <property name="title" translatable="yes">Add CUPS-IPP printer</property>
+    <property name="default-width">450</property>
+    <property name="modal">True</property>
+    <property name="destroy-with-parent">True</property>
+    <property name="use-header-bar">1</property>
+
+    <child>
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <property name="margin-top">12</property>
+        <property name="margin-bottom">12</property>
+        <property name="margin-start">12</property>
+        <property name="margin-end">12</property>
+        <property name="spacing">24</property>
+
         <child>
-          <object class="GtkScrolledWindow" id="app_printer_scrolled_window">
-            <property name="halign">center</property>
-            <property name="has-frame">True</property>
-            <property name="height-request">160</property>
-            <property name="hscrollbar-policy">never</property>
-            <property name="margin-bottom">198</property>
-            <property name="margin-start">14</property>
-            <property name="valign">center</property>
-            <property name="width-request">200</property>
+          <object class="GtkBox">
+            <property name="orientation">vertical</property>
+            <property name="spacing">12</property>
+
             <child>
-              <object class="GtkTreeView" id="app_printer_list_treeview">
-                <property name="accessible-role">radio</property>
-                <property name="enable-tree-lines">True</property>
-                <child internal-child="selection">
-                  <object class="GtkTreeSelection" id="treeview-selection"/>
+              <object class="GtkLabel">
+                <property name="label" translatable="yes">Choose an option how to set up this printer.</property>
+                <property name="xalign">0</property>
+                <style>
+                  <class name="title-4"/>
+                </style>
+              </object>
+            </child>
+
+            <child>
+              <object class="GtkListBox">
+                <property name="selection-mode">none</property>
+                <style>
+                  <class name="boxed-list"/>
+                </style>
+
+                <!-- Option 1: Already installed printer -->
+                <child>
+                  <object class="GtkListBoxRow">
+                    <child>
+                      <object class="GtkBox">
+                        <property name="spacing">12</property>
+                        <property name="margin-top">12</property>
+                        <property name="margin-bottom">12</property>
+                        <property name="margin-start">12</property>
+                        <property name="margin-end">12</property>
+                        <child>
+                          <object class="GtkCheckButton" id="option_installed">
+                            <property name="active">True</property>
+                            <accessibility>
+                              <property name="label" translatable="yes">Select an already installed printer application</property>
+                            </accessibility>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkBox">
+                            <property name="orientation">vertical</property>
+                            <property name="spacing">6</property>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label" translatable="yes">Select an already installed printer application</property>
+                                <property name="xalign">0</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkDropDown" id="printer_app_dropdown">
+                                <property name="sensitive" bind-source="option_installed" bind-property="active" bind-flags="sync-create"/>
+                                <property name="model">
+                                  <object class="GtkStringList">
+                                    <items>
+                                      <item>HPLIP Printer Application</item>
+                                      <item>Gutenprinter Printer Application</item>
+                                    </items>
+                                  </object>
+                                </property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+
+                <!-- Option 2: Internet printer -->
+                <child>
+                  <object class="GtkListBoxRow">
+                    <child>
+                      <object class="GtkBox">
+                        <property name="spacing">12</property>
+                        <property name="margin-top">12</property>
+                        <property name="margin-bottom">12</property>
+                        <property name="margin-start">12</property>
+                        <property name="margin-end">12</property>
+                        <child>
+                          <object class="GtkCheckButton" id="option_internet">
+                            <property name="group">option_installed</property>
+                            <accessibility>
+                              <property name="label" translatable="yes">Select printer application from the internet</property>
+                            </accessibility>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">Select printer application from the internet:</property>
+                            <property name="xalign">0</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+
+                <!-- Option 3: Legacy driver -->
+                <child>
+                  <object class="GtkListBoxRow">
+                    <child>
+                      <object class="GtkBox">
+                        <property name="spacing">12</property>
+                        <property name="margin-top">12</property>
+                        <property name="margin-bottom">12</property>
+                        <property name="margin-start">12</property>
+                        <property name="margin-end">12</property>
+                        <child>
+                          <object class="GtkCheckButton" id="option_legacy">
+                            <property name="group">option_installed</property>
+                            <accessibility>
+                              <property name="label" translatable="yes">Select a classic driver for this printer</property>
+                            </accessibility>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkBox">
+                            <property name="orientation">vertical</property>
+                            <property name="spacing">6</property>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label" translatable="yes">Select a classic driver for this printer (legacy)</property>
+                                <property name="xalign">0</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label" translatable="yes">Set up the printer with a classic CUPS driver</property>
+                                <property name="xalign">0</property>
+                                <style>
+                                  <class name="dim-label"/>
+                                  <class name="caption"/>
+                                </style>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
                 </child>
               </object>
             </child>
           </object>
         </child>
+
+        <!-- Bottom buttons -->
         <child>
-          <object class="GtkFixed" id="app_printer_dialog_button_panel">
-            <property name="width-request">203</property>
+          <object class="GtkBox">
+            <property name="spacing">6</property>
             <child>
-              <object class="GtkButton" id="app_printer_dialog_auto_add">
-                <property name="halign">center</property>
-                <property name="label">Auto-Add</property>
-                <property name="margin-start">19</property>
-                <property name="margin-top">131</property>
-                <property name="sensitive">False</property>
-                <property name="valign">center</property>
+              <object class="GtkButton" id="web_interface_button">
+                <property name="label" translatable="yes">Configure via web interface</property>
+                <property name="sensitive" bind-source="option_installed" bind-property="active" bind-flags="sync-create"/>
+                <style>
+                  <class name="flat"/>
+                </style>
               </object>
             </child>
             <child>
-              <object class="GtkButton" id="app_printer_dialog_install">
-                <property name="halign">center</property>
-                <property name="label">Install</property>
-                <property name="margin-start">19</property>
-                <property name="margin-top">89</property>
-                <property name="sensitive">False</property>
-                <property name="valign">center</property>
-              </object>
-            </child>
-            <child>
-              <object class="GtkButton" id="app_printer_dialog_search">
-                <property name="accessible-role">menu-item-radio</property>
-                <property name="halign">center</property>
-                <property name="label">Search</property>
-                <property name="margin-bottom">3</property>
-                <property name="margin-start">18</property>
-                <property name="margin-top">47</property>
-                <property name="valign">center</property>
-              </object>
-            </child>
-            <child>
-              <object class="GtkButton" id="app_printer_dialog_web">
-                <property name="accessible-role">menu-item-radio</property>
-                <property name="halign">center</property>
-                <property name="label">Web Interface</property>
-                <property name="margin-bottom">3</property>
-                <property name="margin-start">18</property>
-                <property name="margin-top">172</property>
-                <property name="sensitive">False</property>
-                <property name="valign">center</property>
+              <object class="GtkButton" id="setup_button">
+                <property name="label" translatable="yes">Set up printer</property>
+                <style>
+                  <class name="suggested-action"/>
+                </style>
+                <property name="hexpand">True</property>
+                <property name="halign">end</property>
               </object>
             </child>
           </object>
         </child>
-        <child>
-          <object class="GtkFixed"/>
-        </child>
       </object>
-    </property>
-    <property name="default-height">400</property>
-    <property name="default-width">400</property>
-    <property name="destroy-with-parent">True</property>
-    <property name="height-request">400</property>
-    <property name="modal">True</property>
-    <property name="title">Printer Application Dialog</property>
+    </child>
   </template>
 </interface>

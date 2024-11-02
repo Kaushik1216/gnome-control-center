@@ -374,8 +374,11 @@ on_printer_rename_cb (GObject      *source_object,
 static void
 on_click_web_interface (PpPrinterEntry *self)
 {
-    GtkUriLauncher* url = (GtkUriLauncher*)self->web_interface;
-    gtk_uri_launcher_launch(url, NULL, NULL,NULL, NULL);
+    GtkUriLauncher *launcher;
+    launcher = gtk_uri_launcher_new (self->web_interface);
+    gtk_uri_launcher_launch (launcher, NULL, NULL, NULL, NULL);
+    g_object_unref (launcher);
+
     return;
 }
 
@@ -725,11 +728,12 @@ pp_printer_entry_update (PpPrinterEntry *self,
   gboolean          sanitize_name = FALSE;
   g_autofree gchar *instance = NULL;
   const gchar      *printer_uri = NULL;
-  gchar      *web_interface = NULL;
+  gchar            *web_interface = NULL;
   const gchar      *dev_type = NULL;
   const gchar      *device_uri = NULL;
   const gchar      *location = NULL;
   const gchar      *printer_make_and_model = NULL;
+  const gchar      *printer_commands = NULL;
   const gchar      *UUID = NULL;
   const gchar      *reason = NULL;
   gchar           **printer_reasons = NULL;
@@ -803,8 +807,11 @@ pp_printer_entry_update (PpPrinterEntry *self,
     }
 
   self->printer_state = PRINTER_READY;
+  //printf("\n");
+  //printf("printer Name : ------->%s:\n",printer.name);
   for (i = 0; i < printer.num_options; i++)
     {
+      //printf("printer option : ------->%s:%s:\n",printer.options[i].name , printer.options[i].value);
       if (g_strcmp0 (printer.options[i].name, "device-uri") == 0)
         device_uri = printer.options[i].value;
       else if (g_strcmp0 (printer.options[i].name, "printer-more-info") == 0)
@@ -813,6 +820,8 @@ pp_printer_entry_update (PpPrinterEntry *self,
         dev_type = printer.options[i].value;
       else if (g_strcmp0 (printer.options[i].name, "sanitize-name") == 0)
         sanitize_name = TRUE;
+      else if (g_strcmp0 (printer.options[i].name, "printer-commands") == 0)
+        printer_commands = printer.options[i].value;
       else if (g_strcmp0 (printer.options[i].name, "printer-uri-supported") == 0)
         printer_uri = printer.options[i].value;
       else if (g_strcmp0 (printer.options[i].name, "printer-type") == 0)
@@ -902,17 +911,6 @@ pp_printer_entry_update (PpPrinterEntry *self,
         status = g_strdup (_(statuses[report_index]));
     }
 
-   if (web_interface != NULL)
-   {
-       gtk_widget_action_set_enabled (GTK_WIDGET (self), "printer.options", FALSE);
-       gtk_widget_action_set_enabled (GTK_WIDGET (self), "printer.details", FALSE);
-       gtk_widget_action_set_enabled (GTK_WIDGET (self), "printer.default", self->is_authorized);
-       gtk_widget_action_set_enabled (GTK_WIDGET (self), "printer.remove", self->is_authorized);
-   }
-  else {
-     gtk_widget_action_set_enabled (GTK_WIDGET (self), "printer.webinterface", TRUE);
-  }
-
   if ((self->printer_state == PRINTER_STOPPED || !is_accepting_jobs) &&
       status != NULL && status[0] != '\0')
     {
@@ -962,7 +960,7 @@ pp_printer_entry_update (PpPrinterEntry *self,
   gtk_label_set_text (self->printer_name_label, instance);
   self->is_default = printer.is_default;
   g_object_notify (G_OBJECT (self), "default");
-  
+
   if (dev_type == NULL || sanitize_name == TRUE)
     self->printer_make_and_model = sanitize_printer_model (printer_make_and_model);
   else
@@ -994,6 +992,17 @@ pp_printer_entry_update (PpPrinterEntry *self,
     {
       gtk_label_set_text (self->printer_location_address_label, location);
     }
+
+  if(web_interface!=NULL || device_uri==NULL) {
+    gtk_widget_action_set_enabled (GTK_WIDGET (self), "printer.options", FALSE);
+    gtk_widget_action_set_enabled (GTK_WIDGET (self), "printer.details", FALSE);
+    gtk_widget_action_set_enabled (GTK_WIDGET (self), "printer.remove", FALSE);
+    gtk_widget_action_set_enabled (GTK_WIDGET (self), "printer.default", FALSE);
+  }
+
+  if(printer_commands!=NULL){
+    gtk_widget_action_set_enabled (GTK_WIDGET (self), "printer.webinterface", FALSE);
+  }
 
   ink_supply_is_empty = supply_level_is_empty (self);
   gtk_widget_set_visible (GTK_WIDGET (self->printer_inklevel_label), !ink_supply_is_empty);

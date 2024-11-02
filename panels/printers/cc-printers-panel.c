@@ -32,6 +32,7 @@
 #include <glib.h>
 #include <glib/gi18n.h>
 #include <gio/gio.h>
+#include <gtk/gtk.h>
 
 #include <cups/cups.h>
 #include <cups/ppd.h>
@@ -932,11 +933,11 @@ add_ipp_device_cb (AvahiData*   data,
   //gtk_stack_set_visible_child_name (GTK_STACK (widget) , "printers-list");
   gtk_stack_set_visible_child_name (self->main_stack, "printers-list");
 
-  //gpointer isremove = g_hash_table_remove(self->printer_entries, dest->name);
   item = g_hash_table_lookup (self->printer_entries, dest->name);
 
-  if(item == NULL)
-    add_printer_entry (self, *dest);
+  if(item == NULL) {
+     add_printer_entry (self, *dest);
+  }
 
   update_sensitivity (data->user_data);
 }
@@ -995,16 +996,16 @@ actualize_printers_list_cb (GObject      *source_object,
       if (new_printer_available)
         break;
     }
-
+  //printf("===================================================================The integer value is: %d\n", self->num_dests);
   for (i = 0; i < self->num_dests; i++)
     {
       if (new_printer_available && g_strcmp0 (self->dests[i].name, self->old_printer_name) == 0)
           continue;
-
+      //printf("===================================================================printer name %s\n", self->dests[i].name);
       item = g_hash_table_lookup (self->printer_entries, self->dests[i].name);
       if (item != NULL)
         pp_printer_entry_update (PP_PRINTER_ENTRY (item), self->dests[i], self->is_authorized);
-      else
+     else
         add_printer_entry (self, self->dests[i]);
     }
 
@@ -1100,16 +1101,27 @@ add_device (AvahiData* data)
     dest->name = g_strdup (data->name);
     add_option (dest, "UUID", data->UUID);
     add_option (dest, "device-uri", data->uri);
+     //Avahi *avahi_data = (Avahi *)self->printer_device_backend;
+    //for (GList *l = avahi_data->system_objects; l != NULL; l = l->next) {
+      //    AvahiData *data = (AvahiData *)l->data;
+          //if (data && data->name && data->object_type && g_strcmp0 (data->object_type, "SYSTEM_OBJECT") == 0) {
 
-    if (data->admin_url != NULL)
+           // printf("Name ====================================================================== >: %s\n", data->name);
+            //printf("Admin Url ====================================================================== >: %s\n", data->admin_url);
+            //printf("object type  ====================================================================== >: %s\n", data->object_type);
+            //break;
+          //}
+      //}
+    //if (data->admin_url != NULL)
       add_option (dest, "printer-more-info", data->admin_url);
-    else
-      add_option (dest, "printer-more-info", g_strdup_printf("http://%s:%d", data->hostname, data->port));
+    //else {
+      //data->admin_url = g_strdup_printf("http://%s:%d", data->hostname, data->port);
+      //add_option (dest, "printer-more-info", g_strdup_printf("http://%s:%d", data->hostname, data->port));
+    //}
 
     add_option (dest, "printer-location", data->location);
     add_option(dest, "hostname", data->hostname);
-    add_option(dest, "OBJ_TYPE", "PRINTER_OBJECT");
-    // data->services = g_list_append(data->services, dest);
+    add_option(dest, "OBJ_TYPE", data->object_type);
     add_ipp_device_cb(data, dest);
     return;
 }
@@ -1247,6 +1259,9 @@ avahi_service_resolver_cb (GObject      *source_object,
                 data->domain = g_strdup (domain);
                 data->services = NULL;
 
+                if(data->admin_url==NULL){
+                  data->admin_url = g_strdup_printf("http://%s:%d", data->hostname, data->port);
+                }
                 g_variant_unref (txt);
                 g_variant_unref (output);
 
@@ -1258,7 +1273,6 @@ avahi_service_resolver_cb (GObject      *source_object,
                     //   get_services (data);
                     //  else    Check new method for getting device from IPP request
                       add_device (data);
-
                   }
                 else
                  {
@@ -1549,7 +1563,7 @@ printer_add_async_cb (GObject      *source_object,
           gtk_window_present (GTK_WINDOW (message_dialog));
         }
     }
-  //actualize_ipp_device_list (self);
+  actualize_ipp_device_list (self);
   actualize_printers_list (self);
 }
 
@@ -1567,7 +1581,7 @@ new_printer_dialog_response_cb (GtkWindow *_dialog,
       new_printer = pp_new_printer_dialog_get_new_printer (pp_new_printer_dialog);
       g_object_get(G_OBJECT (new_printer), "name", &self->new_printer_name, NULL);
 
-      //actualize_ipp_device_list (self);
+      actualize_ipp_device_list (self);
       actualize_printers_list (self);
 
       pp_new_printer_add_async (new_printer,
@@ -1588,8 +1602,8 @@ printer_add_cb (CcPrintersPanel *self)
   native = gtk_widget_get_native (GTK_WIDGET (self));
   self->pp_new_printer_dialog = pp_new_printer_dialog_new (self->all_ppds_list,
                                                            new_printer_dialog_response_cb,
-                                                           self);
-
+                                                           self,
+                                                           self->printer_device_backend);
   gtk_window_set_transient_for (GTK_WINDOW (self->pp_new_printer_dialog),
                                             GTK_WINDOW (native));
 
@@ -1639,7 +1653,7 @@ update_sensitivity (gpointer user_data)
 static void
 on_permission_changed (CcPrintersPanel *self)
 {
-  //actualize_ipp_device_list (self);
+  actualize_ipp_device_list (self);
   actualize_printers_list (self);
   update_sensitivity (self);
 }
@@ -1671,7 +1685,7 @@ cups_status_check_cb (GObject      *source_object,
   success = pp_cups_connection_test_finish (PP_CUPS (source_object), result, NULL);
   if (success)
     {
-      //actualize_ipp_device_list (self);
+      actualize_ipp_device_list (self);
       actualize_printers_list (self);
       attach_to_cups_notifier (self);
 
@@ -1740,40 +1754,26 @@ sort_function (GtkListBoxRow *row1,
   PpPrinterEntry *entry1 = PP_PRINTER_ENTRY (row1);
   PpPrinterEntry *entry2 = PP_PRINTER_ENTRY (row2);
 
-  int val;
+  gchar *web_interface1 = pp_printer_entry_get_web_interface(entry1);
+  gchar *web_interface2 = pp_printer_entry_get_web_interface(entry2);
 
-  if (pp_printer_entry_get_hostname (entry1) != NULL)
+  if (web_interface1 != NULL && web_interface2 != NULL)
+  {
+    return g_ascii_strcasecmp (pp_printer_entry_get_web_interface (entry1), pp_printer_entry_get_web_interface (entry2));
+  }
+
+  int val = g_ascii_strcasecmp (pp_printer_entry_get_name (entry1), pp_printer_entry_get_name (entry2));
+
+  if (pp_printer_entry_get_name (entry1) != NULL)
     {
-      if (pp_printer_entry_get_hostname (entry2) != NULL)
-        {
-          val = g_ascii_strcasecmp (pp_printer_entry_get_hostname (entry1), pp_printer_entry_get_hostname (entry2));
-
-          if (val == 0)
-           {
-              if (pp_printer_entry_get_name (entry1) != NULL)
-               {
-                  if (pp_printer_entry_get_name (entry2) != NULL)
-                    return g_ascii_strcasecmp (pp_printer_entry_get_name (entry1), pp_printer_entry_get_name (entry2));
-                  else
-                    return 1;
-               }
-               else
-               {
-                   if (pp_printer_entry_get_name (entry2) != NULL)
-                      return -1;
-                    else
-                      return 0;
-               }
-          }
-
-          return val;
-        }
+      if (pp_printer_entry_get_name (entry2) != NULL)
+        return g_ascii_strcasecmp (pp_printer_entry_get_name (entry1), pp_printer_entry_get_name (entry2));
       else
         return 1;
     }
   else
     {
-      if (pp_printer_entry_get_hostname (entry2) != NULL)
+      if (pp_printer_entry_get_name (entry2) != NULL)
         return -1;
       else
         return 0;
@@ -1833,30 +1833,6 @@ filter_function (GtkListBoxRow *row,
 
   return retval;
 }
-
-//static gint
-//sort_function (GtkListBoxRow *row1,
-  //             GtkListBoxRow *row2,
-    //           gpointer       user_data)
-//{
-  //PpPrinterEntry *entry1 = PP_PRINTER_ENTRY (row1);
-  //PpPrinterEntry *entry2 = PP_PRINTER_ENTRY (row2);
-
-  //if (pp_printer_entry_get_name (entry1) != NULL)
-    //{
-      //if (pp_printer_entry_get_name (entry2) != NULL)
-        //return g_ascii_strcasecmp (pp_printer_entry_get_name (entry1), pp_printer_entry_get_name (entry2));
-      //else
-        //return 1;
-    //}
-  //else
-    //{
-      //if (pp_printer_entry_get_name (entry2) != NULL)
-        //return -1;
-      //else
-        //return 0;
-    //}
-//}
 
 static void
 cc_printers_panel_class_init (CcPrintersPanelClass *klass)
@@ -2003,3 +1979,4 @@ Please check your installation");
 
   pp_cups_connection_test_async (self->cups, cc_panel_get_cancellable (CC_PANEL (self)), connection_test_cb, self);
 }
+

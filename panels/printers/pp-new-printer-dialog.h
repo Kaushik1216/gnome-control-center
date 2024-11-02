@@ -30,7 +30,8 @@ G_DECLARE_FINAL_TYPE (PpNewPrinterDialog, pp_new_printer_dialog, PP, NEW_PRINTER
 
 PpNewPrinterDialog *pp_new_printer_dialog_new                  (PPDList              *ppd_list,
                                                                 UserResponseCallback  user_callback,
-                                                                gpointer              user_data);
+                                                                gpointer              user_data,
+                                                                gpointer              ipp_data);
 void                pp_new_printer_dialog_set_ppd_list         (PpNewPrinterDialog *dialog,
                                                                 PPDList            *list);
 PpNewPrinter       *pp_new_printer_dialog_get_new_printer (PpNewPrinterDialog *dialog);

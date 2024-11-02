@@ -386,6 +386,34 @@ printer_add_real_async_cb (cups_dest_t *destination,
     }
 }
 
+static
+gboolean check_dbus_mechanism_exists(const gchar *bus_name, const gchar *object_path, const gchar *interface_name, GError **error) {
+    GDBusProxy *proxy;
+
+    // Create a proxy object to check if the mechanism exists
+    proxy = g_dbus_proxy_new_sync(
+        g_bus_get_sync(G_BUS_TYPE_SYSTEM, NULL, error), // Replace with G_BUS_TYPE_SESSION if needed
+        G_DBUS_PROXY_FLAGS_NONE,
+        NULL,
+        bus_name,
+        object_path,
+        interface_name,
+        NULL,
+        error
+    );
+
+    if (proxy == NULL) {
+        // Mechanism does not exist or another error occurred
+        return FALSE;
+    }
+
+    // Clean up
+    g_object_unref(proxy);
+
+    // Mechanism exists
+    return TRUE;
+}
+
 static void
 printer_add_real_async_dbus_cb (GObject      *source_object,
                                 GAsyncResult *res,
@@ -412,7 +440,8 @@ printer_add_real_async_dbus_cb (GObject      *source_object,
   else
     {
       if (!g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
-        g_warning ("%s", error->message);
+        //g_warning ("%s", error->message);
+        g_warning ("%s", "Kaushik Error");
     }
 
   if (!g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
@@ -442,7 +471,17 @@ printer_add_real_async (PpNewPrinter *self)
       _pp_new_printer_add_async_cb (FALSE, self);
       return;
     }
-
+  printf("\n I am called here mai hi hu---------------------------------------------------------------------------------------------------\n");
+  printf("Printer Name is here: %s\n", self->name);
+  printf("Device Uri is here: %s\n", self->device_uri);
+  printf("PPD name is here: %s\n", self->ppd_name);
+  printf("infor is here: %s\n", self->info);
+  printf("location %s\n", self->location);
+if(self->ppd_name) {
+        printf("printer add called\n");
+}else {
+       printf("printer add with ppd file called");
+}
   g_dbus_connection_call (bus,
                           MECHANISM_BUS,
                           "/",
@@ -460,6 +499,21 @@ printer_add_real_async (PpNewPrinter *self)
                           NULL,
                           printer_add_real_async_dbus_cb,
                           self);
+
+  //g_dbus_connection_call (bus,
+    //                      MECHANISM_BUS,
+      ///                    "/",
+         //                 MECHANISM_BUS,
+           //               self->ppd_name ? "PrinterAppPrinterAdd" : "PrinterAppPrinterAdd",
+             //             NULL,
+               //           NULL,
+                //         G_DBUS_CALL_FLAGS_NONE,
+                  //        DBUS_TIMEOUT,
+                    //      NULL,
+                      //    printer_add_real_async_dbus_cb,
+                        // self);
+  //check_dbus_mechanism_exists(const gchar *bus_name, const gchar *object_path, const gchar *interface_name, GError **error) {
+  //gboolean ans  =
 }
 
 static PPDName *
@@ -645,6 +699,7 @@ printer_add_async_scb (GObject      *source_object,
           bus = g_bus_get_sync (G_BUS_TYPE_SESSION, NULL, &bus_error);
           if (bus)
             {
+             printf("\n dbus in  printer add asyn called----------------------------------------------------------------------------------------\n");
               g_variant_builder_init (&array_builder, G_VARIANT_TYPE ("as"));
               g_variant_builder_add (&array_builder, "s", self->device_id);
 
@@ -663,6 +718,7 @@ printer_add_async_scb (GObject      *source_object,
                                       NULL,
                                       install_printer_drivers_cb,
                                       self);
+                printf("\n dbus in  printer add asyn called----------------------------------------------------------------------------------------\n");
             }
           else
             {
@@ -672,6 +728,7 @@ printer_add_async_scb (GObject      *source_object,
         }
       else if (ppd_item && ppd_item->ppd_name)
         {
+          printf("\n printer ppd called                     ----------------------------------------------------------------------------------------%s:\n",ppd_item->ppd_name);
           self->ppd_name = g_strdup (ppd_item->ppd_name);
           printer_add_real_async (self);
         }
@@ -1241,17 +1298,19 @@ pp_new_printer_add_async (PpNewPrinter        *self,
   if (self->ppd_name || self->ppd_file_name)
     {
       /* We have everything we need */
+        printf("I am here 1---------------------------------------------------------------------------------------------------------------------");
       printer_add_real_async (self);
     }
   else if (self->device_id)
     {
       g_autoptr(GDBusConnection) bus = NULL;
       g_autoptr(GError) error = NULL;
-
+      printf("I am here 2---------------------------------------------------------------------------------------------------------------------");
       /* Try whether CUPS has a driver for the new printer */
       bus = g_bus_get_sync (G_BUS_TYPE_SESSION, NULL, &error);
       if (bus)
         {
+          printf("I am here 3---------------------------------------------------------------------------------------------------------------------");
           g_dbus_connection_call (bus,
                                   SCP_BUS,
                                   SCP_PATH,
@@ -1270,6 +1329,7 @@ pp_new_printer_add_async (PpNewPrinter        *self,
         }
       else
         {
+          printf("I am here 4 ---------------------------------------------------------------------------------------------------------------------");
           g_warning ("Failed to get system bus: %s", error->message);
           _pp_new_printer_add_async_cb (FALSE, self);
         }
@@ -1277,6 +1337,7 @@ pp_new_printer_add_async (PpNewPrinter        *self,
   else if (self->original_name && self->host_name)
     {
       /* Try to get PPD from remote CUPS */
+      printf("I am here 5 ---------------------------------------------------------------------------------------------------------------------");
       printer_get_ppd_async (self->original_name,
                              self->host_name,
                              self->host_port,
